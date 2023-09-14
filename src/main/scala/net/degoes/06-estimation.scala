@@ -15,9 +15,7 @@ package net.degoes.estimation
 
 import org.openjdk.jmh.annotations._
 import org.openjdk.jmh.infra.Blackhole
-
 import java.util.concurrent.TimeUnit
-import scala.util.Random
 
 /**
  * EXERCISE 1
@@ -38,8 +36,8 @@ class Estimation1Benchmark {
   @Param(Array("1000", "10000"))
   var size: Int = _
 
-  var list: List[Int]   = _
-  var array: Array[Int] = _
+  var list: List[Int]                 = _
+  var array: Array[java.lang.Integer] = _
 
   @Setup
   def setup(): Unit = {
@@ -48,7 +46,7 @@ class Estimation1Benchmark {
   }
 
   @Benchmark
-  def add1(blackhole: Blackhole): Unit = {
+  def list(blackhole: Blackhole): Unit = {
     val iterator = list.iterator
 
     var sum = 0
@@ -60,7 +58,7 @@ class Estimation1Benchmark {
   }
 
   @Benchmark
-  def add2(blackhole: Blackhole): Unit = {
+  def array(blackhole: Blackhole): Unit = {
     var i   = 0
     var sum = 0
     while (i < array.length) {
@@ -84,7 +82,7 @@ class Estimation1Benchmark {
 @BenchmarkMode(Array(Mode.Throughput))
 @Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
-@Fork(value = 1, jvmArgsAppend = Array())
+@Fork(value = 1, jvmArgsAppend = Array("-XX:-DoEscapeAnalysis", "-XX:-Inline"))
 @Threads(1)
 class Estimation2Benchmark {
   @Param(Array("1000", "10000"))
@@ -99,24 +97,45 @@ class Estimation2Benchmark {
     array = Array.from[Int](0 until size)
   }
 
+  def plus(left: Int, right: Int): Int = left + right
+
   @Benchmark
-  def add1(blackhole: Blackhole): Unit = {
-    def plus(left: Int, right: Int): Int = left + right
+  def list(blackhole: Blackhole): Unit = {
+    val s = sum(list.map(plus(1, _)))
 
-    val sum = list.map(plus(1, _)).sum
-
-    blackhole.consume(sum)
+    blackhole.consume(s)
   }
 
   @Benchmark
-  def add2(blackhole: Blackhole): Unit = {
-    def plus(left: Int, right: Int): Int = left + right
+  def array_boxing(blackhole: Blackhole): Unit = {
+    val s = sum(array.map { value =>
+      val newValue = IntAdder.add(value, 1)
 
-    val increment = plus(1, _)
+      newValue
+    })
 
-    val sum = array.map(increment(_)).sum
+    blackhole.consume(s)
+  }
 
-    blackhole.consume(sum)
+  def sum(list: List[Int]): Int   = {
+    var sum = 0
+    var cur = list
+    while (!cur.isEmpty) {
+      sum += cur.head
+
+      cur = cur.tail
+    }
+    sum
+  }
+  def sum(array: Array[Int]): Int = {
+    var sum = 0
+    var i   = 0
+    val len = array.length
+    while (i < len) {
+      sum += array(i)
+      i = i + 1
+    }
+    sum
   }
 
   trait Adder[A] {
@@ -139,7 +158,7 @@ class Estimation2Benchmark {
 @BenchmarkMode(Array(Mode.Throughput))
 @Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
-@Fork(value = 1, jvmArgsAppend = Array())
+@Fork(value = 1, jvmArgsAppend = Array("-XX:-DoEscapeAnalysis", "-XX:-Inline"))
 @Threads(1)
 class Estimation3Benchmark {
   val rng = new scala.util.Random(0L)
@@ -203,7 +222,7 @@ class Estimation3Benchmark {
 @BenchmarkMode(Array(Mode.Throughput))
 @Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
-@Fork(value = 1, jvmArgsAppend = Array())
+@Fork(value = 1, jvmArgsAppend = Array("-XX:-DoEscapeAnalysis", "-XX:-Inline"))
 @Threads(1)
 class Estimation4Benchmark {
   @Param(Array("1000", "10000"))
@@ -264,8 +283,11 @@ class Estimation4Benchmark {
   }
   val Adder: ElementChanger[Int] = (i: Int) => i + 1
 
-  trait IntegerChanger extends ElementChanger[Int] {
+  trait IntegerChanger {
     def change(t: Int): Int
   }
-  val Adder2: IntegerChanger = _ + 1
+  val Adder2: IntegerChanger =
+    new IntegerChanger {
+      def change(t: Int): Int = t + 1
+    }
 }

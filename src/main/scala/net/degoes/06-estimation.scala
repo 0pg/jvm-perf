@@ -15,7 +15,9 @@ package net.degoes.estimation
 
 import org.openjdk.jmh.annotations._
 import org.openjdk.jmh.infra.Blackhole
+
 import java.util.concurrent.TimeUnit
+import scala.util.Random
 
 /**
  * EXERCISE 1
@@ -67,12 +69,6 @@ class Estimation1Benchmark {
     }
     blackhole.consume(sum)
   }
-
-  trait Adder[A] {
-    def add(left: A, right: A): A
-  }
-  val IntAdder: Adder[Int] =
-    (left: Int, right: Int) => left + right
 }
 
 /**
@@ -114,11 +110,11 @@ class Estimation2Benchmark {
 
   @Benchmark
   def add2(blackhole: Blackhole): Unit = {
-    val sum = array.map { value =>
-      val newValue = IntAdder.add(value, 1)
+    def plus(left: Int, right: Int): Int = left + right
 
-      newValue
-    }.sum
+    val increment = plus(1, _)
+
+    val sum = array.map(increment(_)).sum
 
     blackhole.consume(sum)
   }
@@ -218,15 +214,17 @@ class Estimation4Benchmark {
 
   var operations1: Array[Int => Int]          = _
   var operations2: Array[ElementChanger[Int]] = _
+  var operations3: Array[IntegerChanger]      = _
 
   @Setup
   def setup(): Unit = {
     operations1 = Array.from((0 until size).map(index => Adders(index % Adders.length)))
     operations2 = Array.fill(size)(Adder)
+    operations3 = Array.fill(size)(Adder2)
   }
 
   @Benchmark
-  def ops1(blackhole: Blackhole): Unit = {
+  def ploy(blackhole: Blackhole): Unit = {
     var i      = 0
     var result = 0
     while (i < size) {
@@ -238,7 +236,7 @@ class Estimation4Benchmark {
   }
 
   @Benchmark
-  def ops2(blackhole: Blackhole): Unit = {
+  def monoBox(blackhole: Blackhole): Unit = {
     var i      = 0
     var result = 0
     while (i < size) {
@@ -249,8 +247,25 @@ class Estimation4Benchmark {
     blackhole.consume(result)
   }
 
+  @Benchmark
+  def monoUnbox(blackhole: Blackhole): Unit = {
+    var i      = 0
+    var result = 0
+    while (i < size) {
+      val op = operations3(i)
+      result = op.change(result)
+      i = i + 1
+    }
+    blackhole.consume(result)
+  }
+
   trait ElementChanger[T] {
     def change(t: T): T
   }
   val Adder: ElementChanger[Int] = (i: Int) => i + 1
+
+  trait IntegerChanger extends ElementChanger[Int] {
+    def change(t: Int): Int
+  }
+  val Adder2: IntegerChanger = _ + 1
 }

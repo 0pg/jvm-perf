@@ -12,8 +12,8 @@ package net.degoes.tricks
 
 import org.openjdk.jmh.annotations._
 import org.openjdk.jmh.infra.Blackhole
+
 import java.util.concurrent.TimeUnit
-import scala.util.control.NoStackTrace
 
 /**
  * EXERCISE 1
@@ -60,7 +60,18 @@ class UseNullBenchmark {
   }
 
   @Benchmark
-  def nulls(blackhole: Blackhole): Unit = ()
+  def nulls(blackhole: Blackhole): Unit = {
+    var i               = 0
+    var current: String = "a"
+    val cutoff          = size - 10
+    while (i < size) {
+      if (i > cutoff) current = null
+      else current = if (current eq null) current else "a"
+      i = i + 1
+    }
+    blackhole.consume(current)
+  }
+
 }
 
 /**
@@ -87,17 +98,21 @@ class UseArraysBenchmark {
   @Param(Array("10000", "100000"))
   var size: Int = _
 
-  var list: List[Float] = _
+  var list: List[Float]   = _
+  var array: Array[Float] = _
 
   @Setup
-  def setup(): Unit =
+  def setup(): Unit = {
     list = List.fill(size)(rng.nextFloat)
+    array = Array.fill(size)(rng.nextFloat())
+  }
 
   @Benchmark
   def list(blackhole: Blackhole): Unit = {
     var i           = 0
     var current     = list
     val listBuilder = List.newBuilder[Float]
+    listBuilder.sizeHint(size)
     var x1          = current.head
     var x2          = current.head
     while (i < size) {
@@ -114,7 +129,26 @@ class UseArraysBenchmark {
   }
 
   @Benchmark
-  def array(blackhole: Blackhole): Unit = ()
+  def array(blackhole: Blackhole): Unit = {
+    var i  = 0
+//    val arrayBuilder = Array.newBuilder[Float]
+//    arrayBuilder.sizeHint(size)
+    var x1 = array(0)
+    var x2 = array(0)
+    while (i < size) {
+      val x3 = array(i)
+
+      array(i) = ((x1 + x2 + x3) / 3)
+//      arrayBuilder += ((x1 + x2 + x3) / 3)
+
+//      i = i + 1
+//      x1 = x2
+//      x2 = x3
+      i += 1
+    }
+    blackhole.consume(array)
+//    blackhole.consume(arrayBuilder.result())
+  }
 }
 
 /**

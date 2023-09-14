@@ -19,9 +19,9 @@ package net.degoes.virtual
 
 import org.openjdk.jmh.annotations._
 import org.openjdk.jmh.infra.Blackhole
-import java.util.concurrent.TimeUnit
-
 import zio.Chunk
+
+import java.util.concurrent.TimeUnit
 
 /**
  * EXERCISE 1
@@ -52,12 +52,17 @@ class PolyBenchmark {
   @Param(Array("1000", "10000", "100000"))
   var size: Int = _
 
-  var poly_operators: Chunk[Operator] = _
-  // var mono_operators: Chunk[Operator.DividedBy.type] = _
+  var poly_operators: Chunk[Operator]        = _
+  var mono_operators: Chunk[Operator]        = _
+  var mono_concat_operators: Chunk[Operator] = _
 
   @Setup
-  def setupPoly(): Unit =
+  def setupPoly(): Unit = {
     poly_operators = Operator.randomN(size)
+    mono_operators = Chunk.fill(size)(Operator.DividedBy)
+    mono_concat_operators =
+      Chunk.fill(size - 1)(Operator.DividedBy) ++ Chunk.single(Operator.DividedBy)
+  }
 
   @Benchmark
   def poly(blackhole: Blackhole): Unit = {
@@ -73,7 +78,35 @@ class PolyBenchmark {
     blackhole.consume(result)
   }
 
-  trait Operator  {
+  @Benchmark
+  def mono(blackhole: Blackhole): Unit = {
+    var i      = 0
+    var result = 0
+    while (i < size) {
+      val operator = mono_operators(i)
+
+      result = operator(result, i + 1)
+
+      i = i + 1
+    }
+    blackhole.consume(result)
+  }
+
+  @Benchmark
+  def monoConcat(blackhole: Blackhole): Unit = {
+    var i      = 0
+    var result = 0
+    while (i < size) {
+      val operator = mono_concat_operators(i)
+
+      result = operator(result, i + 1)
+
+      i = i + 1
+    }
+    blackhole.consume(result)
+  }
+
+  trait Operator {
     def apply(l: Int, r: Int): Int
   }
   object Operator {
@@ -102,7 +135,6 @@ class PolyBenchmark {
     def random(): Operator = All(rng.nextInt(All.length))
 
     def randomN(n: Int): Chunk[Operator] = Chunk.fromIterable(Iterable.fill(n)(random()))
-
   }
 }
 
@@ -136,6 +168,10 @@ class PolySimBenchmark {
   @Benchmark
   def invokeStatic(blackhole: Blackhole): Unit =
     blackhole.consume(is.address.value)
+
+  @Benchmark
+  def invokeDynamic(blackhole: Blackhole): Unit =
+    blackhole.consume(obj.meta.vtable(iv.method).value)
 
   case class JVMObject(data: Any, meta: JVMClassMetadata)
   case class JVMClassMetadata(clazz: String, vtable: Map[JVMMethod, Address])
